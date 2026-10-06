@@ -5406,16 +5406,38 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
   async function saveGeneratedUserIdToSupabase(user, generatedUserId, fullName, mobile, email) {
     if (!isRemoteUsable() || !user || !user.id || !generatedUserId) return false;
 
+    const verifiedAt = user.email_confirmed_at || user.confirmed_at || null;
+    const ownerPayload = {
+      user_id_label: generatedUserId,
+      full_name: String(fullName || user.user_metadata?.full_name || "").trim(),
+      mobile: String(mobile || user.user_metadata?.mobile || "").trim(),
+      email: String(email || user.email || "").trim().toLowerCase(),
+      owner_id_verified: !!(user.user_metadata?.owner_id_verified ?? true),
+      role: String(user.user_metadata?.role || "owner"),
+      email_verified_at: verifiedAt,
+      updated_at: new Date().toISOString()
+    };
+
     let ownerSaved = false;
     try {
-      const { error: ownerUpdateError } = await soumikSupabase
+      /*
+       * First update an owner row created by claim_soumik_owner().
+       * Use .select() so an UPDATE that matches zero rows is not
+       * mistakenly treated as a successful owner_accounts save.
+       */
+      const { data: updatedRows, error: ownerUpdateError } = await soumikSupabase
         .from("owner_accounts")
-        .update({ user_id_label: generatedUserId, full_name: fullName, mobile: mobile })
-        .eq("user_id", user.id);
-      if (!ownerUpdateError) ownerSaved = true;
-      else console.warn("Supabase owner_accounts User ID update failed:", ownerUpdateError);
+        .update(ownerPayload)
+        .eq("user_id", user.id)
+        .select("user_id");
+
+      if (!ownerUpdateError && Array.isArray(updatedRows) && updatedRows.length > 0) {
+        ownerSaved = true;
+      } else if (ownerUpdateError) {
+        console.warn("Supabase owner_accounts update failed:", ownerUpdateError);
+      }
     } catch (e) {
-      console.warn("Supabase owner_accounts User ID update skipped:", e);
+      console.warn("Supabase owner_accounts update skipped:", e);
     }
 
     let profileSaved = false;
@@ -5423,9 +5445,14 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
       const { error: profileError } = await soumikSupabase
         .from("profiles")
         .upsert({
-          user_id: user.id, full_name: fullName, email: email,
-          contact_number: mobile, user_id_label: generatedUserId, owner_id_verified: true
+          user_id: user.id,
+          full_name: ownerPayload.full_name,
+          email: ownerPayload.email,
+          contact_number: ownerPayload.mobile,
+          user_id_label: generatedUserId,
+          owner_id_verified: true
         }, { onConflict: "user_id" });
+
       if (!profileError) profileSaved = true;
       else console.warn("Supabase profile User ID sync failed:", profileError);
     } catch (e) {
@@ -5433,6 +5460,116 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
     }
 
     return ownerSaved || profileSaved;
+  }
+
+  /*
+   * FINAL REGISTRATION SYNC
+   * ---------------------------------------------------------------
+   * Runs immediately after Supabase reports the email as verified.
+   * The secure Edge Function performs two idempotent actions:
+   *   1. saves/updates the complete verified owner record in owner_accounts
+   *   2. creates/updates the matching Brevo contact
+   *
+   * IMPORTANT: The Brevo API key is NEVER placed in this browser HTML.
+   * It stays only in the Supabase Edge Function secret.
+   */
+  let soumikRegistrationFinalizePromise = null;
+
+  async function finalizeVerifiedRegistration(user, options = {}) {
+    if (!isRemoteUsable() || !user || !user.id) return { ok: false, skipped: true };
+
+    const verifiedAt = user.email_confirmed_at || user.confirmed_at || null;
+    if (!verifiedAt) return { ok: false, pendingVerification: true };
+
+    if (soumikRegistrationFinalizePromise) return soumikRegistrationFinalizePromise;
+
+    soumikRegistrationFinalizePromise = (async () => {
+      const cached = JSON.parse(localStorage.getItem("soumikOwnerData") || "null") || {};
+      const meta = user.user_metadata || {};
+
+      const fullName = String(meta.full_name || cached.fullName || "").trim();
+      const mobile = String(meta.mobile || cached.mobile || "").trim();
+      const email = String(user.email || cached.email || "").trim().toLowerCase();
+      const generatedUserId = String(meta.user_id_label || cached.userId || "").trim();
+
+      if (!fullName || !mobile || !email || !generatedUserId) {
+        const missing = [];
+        if (!fullName) missing.push("full name");
+        if (!mobile) missing.push("mobile");
+        if (!email) missing.push("email");
+        if (!generatedUserId) missing.push("User ID");
+        console.warn("Registration finalization is waiting for:", missing.join(", "));
+        return { ok: false, incomplete: true, missing };
+      }
+
+      // Keep the browser's non-password profile cache synchronized.
+      localStorage.setItem("soumikOwnerData", JSON.stringify({
+        ...cached,
+        fullName,
+        mobile,
+        email,
+        userId: generatedUserId,
+        supabaseUserId: user.id,
+        officialOwnerIdVerified: true
+      }));
+
+      /*
+       * Invoke the secure server-side function. Supabase automatically sends
+       * the current user's JWT, and the function verifies the user again.
+       */
+      const { data, error } = await soumikSupabase.functions.invoke("finalize-registration", {
+        body: {
+          fullName,
+          mobile,
+          email,
+          userId: generatedUserId
+        }
+      });
+
+      if (error) {
+        console.error("Secure registration finalization failed:", error);
+
+        /*
+         * Database fallback:
+         * If the Edge Function has not been deployed yet, try to preserve the
+         * existing owner_accounts/profile flow. Brevo sync remains server-only.
+         */
+        try {
+          const { error: claimError } = await soumikSupabase.rpc("claim_soumik_owner", {
+            p_owner_id: String("865K246")
+          });
+          if (!claimError) {
+            await saveGeneratedUserIdToSupabase(user, generatedUserId, fullName, mobile, email);
+            await syncSupabaseProfile(user, { fullName, email, mobile });
+          }
+        } catch (fallbackError) {
+          console.warn("Owner database fallback failed:", fallbackError);
+        }
+
+        return { ok: false, edgeFunctionError: true, error };
+      }
+
+      const result = data || {};
+      if (result.owner_accounts_saved) {
+        await syncSupabaseProfile(user, { fullName, email, mobile });
+      }
+
+      if (!options.silent) {
+        if (result.owner_accounts_saved && result.brevo_synced) {
+          toast("Registration verified. Owner account and Brevo contact saved successfully.", "success");
+        } else if (result.owner_accounts_saved) {
+          toast("Owner account saved. Brevo sync will retry automatically.", "warning");
+        }
+      }
+
+      return { ok: !!result.owner_accounts_saved, ...result };
+    })();
+
+    try {
+      return await soumikRegistrationFinalizePromise;
+    } finally {
+      soumikRegistrationFinalizePromise = null;
+    }
   }
 
   function showRegistrationSuccessCard({ userId, fullName, mobile, email, requiresVerification = false }) {
@@ -5528,6 +5665,7 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
           data: {
             full_name: fullName,
             mobile,
+            user_id_label: generatedUserId,
             owner_id_verified: true,
             role: "owner"
           }
@@ -5615,6 +5753,9 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
       const loginUserId = ownerDataAfterLogin?.userId || "";
       if (loginUserId) await saveGeneratedUserIdToSupabase(user, loginUserId, loginFullName, loginMobile, loginEmail);
       await syncSupabaseProfile(user, { fullName: loginFullName, email: loginEmail, mobile: loginMobile });
+
+      // Email is verified at this point; immediately finalize owner_accounts + Brevo.
+      await finalizeVerifiedRegistration(user, { silent: true });
 
       sessionStorage.setItem("isLoggedIn", "true");
       const ownerData = JSON.parse(localStorage.getItem("soumikOwnerData") || "null");
@@ -5794,6 +5935,10 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
           }));
         }
         await loadRemoteOwnerProfile(session.user.id);
+
+        // If this page was opened by the email-confirmation redirect,
+        // save owner_accounts and the Brevo contact immediately.
+        await finalizeVerifiedRegistration(session.user, { silent: true });
       }
 
       await loadRemoteProducts();
@@ -5812,6 +5957,31 @@ h1, h2, h3, h4, h5, h6, p, a, span, label, td, th, li, code, pre {
   window.addEventListener("load", () => {
     setTimeout(bootSupabase, 250);
   });
+
+  /*
+   * EMAIL VERIFICATION LISTENER
+   * Supabase emits SIGNED_IN/USER_UPDATED after a confirmation link is
+   * accepted and the verified session reaches this website.
+   */
+  if (soumikSupabaseReady && soumikSupabase && soumikSupabase.auth) {
+    soumikSupabase.auth.onAuthStateChange((event, session) => {
+      if (!session || !session.user) return;
+      if (!["SIGNED_IN", "USER_UPDATED", "TOKEN_REFRESHED"].includes(event)) return;
+      const verifiedAt = session.user.email_confirmed_at || session.user.confirmed_at || null;
+      if (!verifiedAt) return;
+
+      setTimeout(async () => {
+        try {
+          const result = await finalizeVerifiedRegistration(session.user, { silent: false });
+          if (result && result.owner_accounts_saved) {
+            sessionStorage.setItem("soumikEmailVerificationFinalized", "true");
+          }
+        } catch (finalizeError) {
+          console.error("Verified registration synchronization failed:", finalizeError);
+        }
+      }, 0);
+    });
+  }
 
   // Keep the app's local cache synchronized after tab focus.
   document.addEventListener("visibilitychange", () => {
