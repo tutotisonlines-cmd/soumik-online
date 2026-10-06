@@ -3528,14 +3528,259 @@ footer .contact-info-list a {
         function handleReviewPhotos(input){reviewPhotoData=[];const files=Array.from(input.files||[]).filter(f=>f.type.startsWith('image/')).slice(0,4);let done=0;if(!files.length){renderReviewPhotoPreview();return;}files.forEach(file=>{const reader=new FileReader();reader.onload=async e=>{try{reviewPhotoData.push(await optimizeImageFile(file,900,0.7));}catch(err){console.warn(err);}done++;if(done===files.length)renderReviewPhotoPreview();};reader.onerror=()=>{done++;if(done===files.length)renderReviewPhotoPreview();};reader.readAsDataURL(file);});}
         function renderReviewPhotoPreview(){const el=document.getElementById('reviewPhotoPreview');if(el)el.innerHTML=reviewPhotoData.map(src=>`<img src="${src}" alt="Review photo preview">`).join('');}
         function submitProductReview(event,id){event.preventDefault();if(!selectedReviewRating){window.soumikToast('Please select a star rating first.','warning');return;}const p=soumikProducts.find(x=>String(x.id)===String(id));if(!p)return;const review={id:Date.now(),productId:p.id,name:document.getElementById('reviewerName').value.trim(),orderRef:document.getElementById('reviewOrderRef').value.trim(),verified:false,rating:selectedReviewRating,text:document.getElementById('reviewText').value.trim(),photos:[...reviewPhotoData],date:new Date().toLocaleDateString()};try{const all=JSON.parse(localStorage.getItem('soumikReviews')||'[]');all.push(review);localStorage.setItem('soumikReviews',JSON.stringify(all));}catch(e){window.soumikToast('রিভিউ সেভ হয়নি। ব্রাউজারের স্টোরেজ পূর্ণ হতে পারে—কম/ছোট ছবি দিয়ে আবার চেষ্টা করুন।','error');return;}closeReviewPage();window.soumikToast('ধন্যবাদ! আপনার রিভিউ সফলভাবে সেভ হয়েছে।','success');updateProductRatingLabels();openProductDetail(id);}
-        function openImageZoom(id,index=0){const p=soumikProducts.find(x=>String(x.id)===String(id));if(!p||!p.images?.length)return;document.body.classList.add('soumik-modal-open');zoomProductImages=p.images;zoomImageIndex=Math.max(0,Math.min(index,zoomProductImages.length-1));showZoomImage();document.getElementById('imageZoomModal').classList.add('show');}
-        function openStandaloneZoom(src){document.body.classList.add('soumik-modal-open');zoomProductImages=[src];zoomImageIndex=0;showZoomImage();document.getElementById('imageZoomModal').classList.add('show');}
-        function showZoomImage(){const img=document.getElementById('zoomedProductImage');img.classList.remove('zoomed');img.src=zoomProductImages[zoomImageIndex]||'';const modal=document.getElementById('imageZoomModal');if(modal)modal.classList.add('show');}
-        function moveZoomImage(delta){if(!zoomProductImages.length)return;zoomImageIndex=(zoomImageIndex+delta+zoomProductImages.length)%zoomProductImages.length;showZoomImage();}
-        function closeImageZoom(){document.getElementById('imageZoomModal').classList.remove('show');if(!document.querySelector('.modal-overlay.show-modal'))document.body.classList.remove('soumik-modal-open');}
-        document.addEventListener('click',e=>{if(e.target?.id==='zoomedProductImage')e.target.classList.toggle('zoomed');});
-        document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeImageZoom();closeProductDetail();closeReviewPage();}if(document.getElementById('imageZoomModal').classList.contains('show')){if(e.key==='ArrowRight')moveZoomImage(1);if(e.key==='ArrowLeft')moveZoomImage(-1);}});
-        document.addEventListener('wheel',e=>{const img=document.getElementById('zoomedProductImage');if(e.target===img){e.preventDefault();img.classList.toggle('zoomed',e.deltaY<0);}},{passive:false});
+        /* ============================================================
+           UNIVERSAL PRODUCT IMAGE ZOOM
+           Mouse wheel + buttons + double-click + pinch + drag/pan.
+           ============================================================ */
+        let soumikZoomScale=1;
+        let soumikZoomX=0;
+        let soumikZoomY=0;
+        let soumikZoomDragging=false;
+        let soumikZoomPointerStart=null;
+        let soumikZoomTouchStartDistance=0;
+        let soumikZoomTouchStartScale=1;
+        let soumikZoomTouchStartCenter=null;
+        let soumikZoomLastTap=0;
+
+        const SOUMIK_ZOOM_MIN=1;
+        const SOUMIK_ZOOM_MAX=5;
+        const SOUMIK_ZOOM_STEP=.35;
+
+        function getZoomImage(){
+          return document.getElementById('zoomedProductImage');
+        }
+
+        function clampZoom(value){
+          return Math.min(SOUMIK_ZOOM_MAX,Math.max(SOUMIK_ZOOM_MIN,value));
+        }
+
+        function renderZoomTransform(){
+          const img=getZoomImage();
+          if(!img)return;
+          if(soumikZoomScale<=1.001){
+            soumikZoomScale=1;
+            soumikZoomX=0;
+            soumikZoomY=0;
+          }
+          img.style.transform=`translate3d(${soumikZoomX}px,${soumikZoomY}px,0) scale(${soumikZoomScale})`;
+          img.classList.toggle('soumik-zoom-active',soumikZoomScale>1.001);
+          img.classList.toggle('soumik-zoom-dragging',soumikZoomDragging);
+
+          const level=document.getElementById('soumikZoomLevel');
+          if(level)level.textContent=`${Math.round(soumikZoomScale*100)}%`;
+        }
+
+        function resetProductImageZoom(){
+          soumikZoomScale=1;
+          soumikZoomX=0;
+          soumikZoomY=0;
+          soumikZoomDragging=false;
+          soumikZoomPointerStart=null;
+          soumikZoomTouchStartDistance=0;
+          soumikZoomTouchStartScale=1;
+          soumikZoomTouchStartCenter=null;
+          renderZoomTransform();
+        }
+
+        function changeProductImageZoom(delta){
+          const next=clampZoom(soumikZoomScale+delta);
+          soumikZoomScale=next;
+          renderZoomTransform();
+        }
+
+        function setProductImageZoom(scale){
+          soumikZoomScale=clampZoom(scale);
+          renderZoomTransform();
+        }
+
+        function toggleProductImageZoom(){
+          setProductImageZoom(soumikZoomScale>1.05?1:2.5);
+        }
+
+        function openImageZoom(id,index=0){
+          const p=soumikProducts.find(x=>String(x.id)===String(id));
+          if(!p||!p.images?.length)return;
+          document.body.classList.add('soumik-modal-open');
+          zoomProductImages=p.images;
+          zoomImageIndex=Math.max(0,Math.min(index,zoomProductImages.length-1));
+          showZoomImage();
+          document.getElementById('imageZoomModal').classList.add('show');
+        }
+
+        function openStandaloneZoom(src){
+          document.body.classList.add('soumik-modal-open');
+          zoomProductImages=[src];
+          zoomImageIndex=0;
+          showZoomImage();
+          document.getElementById('imageZoomModal').classList.add('show');
+        }
+
+        function showZoomImage(){
+          const img=getZoomImage();
+          resetProductImageZoom();
+          if(img)img.src=zoomProductImages[zoomImageIndex]||'';
+          const modal=document.getElementById('imageZoomModal');
+          if(modal)modal.classList.add('show');
+        }
+
+        function moveZoomImage(delta){
+          if(!zoomProductImages.length)return;
+          zoomImageIndex=(zoomImageIndex+delta+zoomProductImages.length)%zoomProductImages.length;
+          showZoomImage();
+        }
+
+        function closeImageZoom(){
+          resetProductImageZoom();
+          const modal=document.getElementById('imageZoomModal');
+          if(modal)modal.classList.remove('show');
+          if(!document.querySelector('.modal-overlay.show-modal'))document.body.classList.remove('soumik-modal-open');
+        }
+
+        function getTouchDistance(touches){
+          const dx=touches[0].clientX-touches[1].clientX;
+          const dy=touches[0].clientY-touches[1].clientY;
+          return Math.hypot(dx,dy);
+        }
+
+        function getTouchCenter(touches){
+          return {
+            x:(touches[0].clientX+touches[1].clientX)/2,
+            y:(touches[0].clientY+touches[1].clientY)/2
+          };
+        }
+
+        document.addEventListener('DOMContentLoaded',()=>{
+          const img=getZoomImage();
+          if(!img)return;
+
+          /* Mouse / trackpad wheel zoom */
+          img.addEventListener('wheel',e=>{
+            e.preventDefault();
+            const direction=e.deltaY<0?1:-1;
+            changeProductImageZoom(direction*SOUMIK_ZOOM_STEP);
+          },{passive:false});
+
+          /* Double-click zoom on desktop/laptop */
+          img.addEventListener('dblclick',e=>{
+            e.preventDefault();
+            e.stopPropagation();
+            toggleProductImageZoom();
+          });
+
+          /* Mouse / pen drag when zoomed */
+          img.addEventListener('pointerdown',e=>{
+            if(e.pointerType==='touch')return;
+            if(soumikZoomScale<=1.001)return;
+            e.preventDefault();
+            img.setPointerCapture?.(e.pointerId);
+            soumikZoomDragging=true;
+            soumikZoomPointerStart={
+              x:e.clientX,
+              y:e.clientY,
+              startX:soumikZoomX,
+              startY:soumikZoomY
+            };
+            renderZoomTransform();
+          });
+
+          img.addEventListener('pointermove',e=>{
+            if(!soumikZoomDragging||!soumikZoomPointerStart||e.pointerType==='touch')return;
+            e.preventDefault();
+            soumikZoomX=soumikZoomPointerStart.startX+(e.clientX-soumikZoomPointerStart.x);
+            soumikZoomY=soumikZoomPointerStart.startY+(e.clientY-soumikZoomPointerStart.y);
+            renderZoomTransform();
+          });
+
+          const endPointer=()=>{
+            soumikZoomDragging=false;
+            soumikZoomPointerStart=null;
+            renderZoomTransform();
+          };
+          img.addEventListener('pointerup',endPointer);
+          img.addEventListener('pointercancel',endPointer);
+
+          /* iPhone / Android pinch-to-zoom + one-finger pan */
+          img.addEventListener('touchstart',e=>{
+            if(e.touches.length===2){
+              e.preventDefault();
+              soumikZoomTouchStartDistance=getTouchDistance(e.touches);
+              soumikZoomTouchStartScale=soumikZoomScale;
+              soumikZoomTouchStartCenter=getTouchCenter(e.touches);
+              soumikZoomDragging=false;
+            }else if(e.touches.length===1){
+              const now=Date.now();
+
+              /* Double tap = quick 250% / reset */
+              if(now-soumikZoomLastTap<320){
+                e.preventDefault();
+                toggleProductImageZoom();
+                soumikZoomLastTap=0;
+                return;
+              }
+              soumikZoomLastTap=now;
+
+              if(soumikZoomScale>1.001){
+                e.preventDefault();
+                soumikZoomDragging=true;
+                soumikZoomPointerStart={
+                  x:e.touches[0].clientX,
+                  y:e.touches[0].clientY,
+                  startX:soumikZoomX,
+                  startY:soumikZoomY
+                };
+                renderZoomTransform();
+              }
+            }
+          },{passive:false});
+
+          img.addEventListener('touchmove',e=>{
+            if(e.touches.length===2&&soumikZoomTouchStartDistance>0){
+              e.preventDefault();
+              const currentDistance=getTouchDistance(e.touches);
+              const ratio=currentDistance/soumikZoomTouchStartDistance;
+              soumikZoomScale=clampZoom(soumikZoomTouchStartScale*ratio);
+              renderZoomTransform();
+              return;
+            }
+
+            if(e.touches.length===1&&soumikZoomDragging&&soumikZoomPointerStart&&soumikZoomScale>1.001){
+              e.preventDefault();
+              soumikZoomX=soumikZoomPointerStart.startX+(e.touches[0].clientX-soumikZoomPointerStart.x);
+              soumikZoomY=soumikZoomPointerStart.startY+(e.touches[0].clientY-soumikZoomPointerStart.y);
+              renderZoomTransform();
+            }
+          },{passive:false});
+
+          img.addEventListener('touchend',e=>{
+            if(e.touches.length<2){
+              soumikZoomTouchStartDistance=0;
+              soumikZoomTouchStartCenter=null;
+            }
+            if(e.touches.length===0){
+              soumikZoomDragging=false;
+              soumikZoomPointerStart=null;
+              renderZoomTransform();
+            }
+          },{passive:false});
+
+          img.addEventListener('dragstart',e=>e.preventDefault());
+        });
+
+        document.addEventListener('keydown',e=>{
+          const zoomOpen=document.getElementById('imageZoomModal')?.classList.contains('show');
+          if(e.key==='Escape'){
+            closeImageZoom();
+            closeProductDetail();
+            closeReviewPage();
+          }
+          if(!zoomOpen)return;
+
+          if(e.key==='ArrowRight')moveZoomImage(1);
+          if(e.key==='ArrowLeft')moveZoomImage(-1);
+          if(e.key==='+'||e.key==='=')changeProductImageZoom(SOUMIK_ZOOM_STEP);
+          if(e.key==='-'||e.key==='_')changeProductImageZoom(-SOUMIK_ZOOM_STEP);
+          if(e.key==='0')resetProductImageZoom();
+        });
         (function routeSharedReviewLink(){const id=new URLSearchParams(window.location.search).get('reviewProduct');if(!id)return;const open=()=>{if(typeof soumikProducts!=='undefined'&&soumikProducts.some(p=>String(p.id)===String(id))){document.querySelectorAll('body > header, body > .section-container, body > footer, body > .bg-shapes').forEach(el=>el.style.display='none');openReviewPage(id);}else setTimeout(open,250);};open();})();
         const previousRenderPublicProducts=renderPublicProducts;
         renderPublicProducts=function(category){previousRenderPublicProducts(category);updateProductRatingLabels();};
@@ -3559,9 +3804,19 @@ footer .contact-info-list a {
     <div id="imageZoomModal" class="image-zoom-overlay" role="dialog" aria-modal="true" aria-label="Image viewer" onclick="if(event.target===this)closeImageZoom()">
       <button class="zoom-close" type="button" aria-label="Close image viewer" onclick="closeImageZoom()">×</button>
       <button class="zoom-prev" type="button" aria-label="Previous image" onclick="event.stopPropagation();moveZoomImage(-1)">‹</button>
-      <img id="zoomedProductImage" src="" alt="Expanded product image" onclick="event.stopPropagation();this.classList.toggle('zoomed')">
+      <img id="zoomedProductImage" src="" alt="Expanded product image">
       <button class="zoom-next" type="button" aria-label="Next image" onclick="event.stopPropagation();moveZoomImage(1)">›</button>
-      <div class="zoom-hint">ছবিতে ট্যাপ করলে আরও বড় হবে · ← → দিয়ে ছবি বদলান · বাইরে ট্যাপ/Esc বন্ধ</div>
+
+      <div class="zoom-hint">
+        Mobile: pinch / double-tap / drag · Laptop/Desktop: mouse wheel / double-click / drag
+      </div>
+
+      <div class="zoom-controls" onclick="event.stopPropagation()" aria-label="Image zoom controls">
+        <button class="zoom-control-btn" type="button" aria-label="Zoom out" title="Zoom out" onclick="changeProductImageZoom(-0.35)">−</button>
+        <span id="soumikZoomLevel" class="zoom-level">100%</span>
+        <button class="zoom-control-btn" type="button" aria-label="Zoom in" title="Zoom in" onclick="changeProductImageZoom(0.35)">+</button>
+        <button class="zoom-control-btn" type="button" aria-label="Reset zoom" title="Reset zoom" onclick="resetProductImageZoom()">↺</button>
+      </div>
     </div>
 
 <!-- Social destinations are the Facebook and Instagram URLs supplied by the site owner. -->
@@ -6928,6 +7183,149 @@ textarea {
     .product-card:hover .product-img {
         transform: none !important;
     }
+}
+</style>
+
+
+<style id="soumik-universal-product-image-zoom-v11">
+/* ================================================================
+   SOUMIK ONLINE — UNIVERSAL PRODUCT IMAGE ZOOM
+   Phone / iPhone / Tablet / Laptop / Desktop
+   Only the full-screen product image viewer is affected.
+   ================================================================ */
+
+.image-zoom-overlay{
+    padding:
+      max(10px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+    box-sizing:border-box;
+    overscroll-behavior:none;
+    touch-action:none;
+}
+
+#zoomedProductImage{
+    display:block;
+    max-width:92vw;
+    max-height:84vh;
+    width:auto;
+    height:auto;
+    object-fit:contain;
+    transform-origin:center center;
+    transform:translate3d(0,0,0) scale(1);
+    transition:transform .12s ease-out;
+    user-select:none;
+    -webkit-user-drag:none;
+    touch-action:none !important;
+    cursor:zoom-in;
+    will-change:transform;
+}
+
+#zoomedProductImage.soumik-zoom-active{
+    cursor:grab;
+}
+
+#zoomedProductImage.soumik-zoom-dragging{
+    cursor:grabbing;
+    transition:none !important;
+}
+
+.zoom-controls{
+    position:absolute;
+    left:50%;
+    bottom:max(18px, env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    z-index:4;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 9px;
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:999px;
+    background:rgba(7,11,25,.72);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    box-shadow:0 10px 30px rgba(0,0,0,.28);
+}
+
+.zoom-control-btn{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.10);
+    color:#fff;
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    font-size:19px;
+    font-weight:800;
+    line-height:1;
+}
+
+.zoom-control-btn:hover{
+    background:rgba(212,175,55,.24);
+    border-color:rgba(212,175,55,.70);
+}
+
+.zoom-level{
+    min-width:58px;
+    text-align:center;
+    color:#f7e7a1;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.02em;
+}
+
+.zoom-hint{
+    bottom:82px !important;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(92vw,720px);
+    padding:8px 12px;
+    border-radius:10px;
+    background:rgba(7,11,25,.58);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    pointer-events:none;
+}
+
+@media (max-width:650px){
+    #zoomedProductImage{
+        max-width:96vw;
+        max-height:78vh;
+    }
+
+    .zoom-close{
+        right:max(7px,env(safe-area-inset-right)) !important;
+        top:max(7px,env(safe-area-inset-top)) !important;
+    }
+
+    .zoom-prev{left:5px !important;}
+    .zoom-next{right:5px !important;}
+
+    .zoom-controls{
+        bottom:max(10px,env(safe-area-inset-bottom));
+        gap:6px;
+        padding:6px 8px;
+    }
+
+    .zoom-control-btn{
+        width:38px;
+        height:38px;
+        font-size:18px;
+    }
+
+    .zoom-hint{
+        bottom:67px !important;
+        font-size:10px !important;
+    }
+}
+
+/* Prevent the old fixed .zoomed class from controlling the new viewer. */
+#zoomedProductImage.zoomed{
+    transform:none !important;
 }
 </style>
 
