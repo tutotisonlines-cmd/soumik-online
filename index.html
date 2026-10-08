@@ -4981,7 +4981,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
                 <div class="auth-form-panel">
                     <h2 data-i18n="loginTitle">Hello Again!</h2>
                     <p class="auth-subtitle" data-i18n="loginSub">Enter your credentials to proceed.</p>
-                    <form onsubmit="loginOwner(event)">
+                    <form id="ownerLoginForm" onsubmit="loginOwner(event)">
                         <div class="form-group">
                             <label data-i18n="lblLoginId">Mobile Number / Email / User ID</label>
                             <div class="input-with-icon"><i class="fas fa-user-circle field-icon"></i><input type="text" id="loginIdentifier" autocomplete="username" placeholder="Mobile number, email or user ID" required></div>
@@ -4993,8 +4993,9 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
                                 <button type="button" class="password-eye-button" data-password-target="loginPassword" aria-label="Show password" aria-pressed="false" onclick="togglePasswordVisibility(this)"><i class="far fa-eye" aria-hidden="true"></i></button>
                             </div>
                         </div>
-                        <a onclick="showSection('forgotPasswordSection')" class="forgot-pass-link" data-i18n="forgotPassLink">Forgot Password?</a>
+                        <a href="#forgot-password" onclick="event.preventDefault();openPasswordRecovery()" class="forgot-pass-link" data-i18n="forgotPassLink">Forgot Password?</a>
                         <button type="submit" class="form-btn"><i class="fas fa-sign-in-alt"></i> <span data-i18n="btnLogin">Login to Dashboard</span></button>
+                        
                         <div class="auth-links"><p><span data-i18n="newAdminTxt">New Administrator?</span> <a onclick="showSection('register')" data-i18n="regHereLink">Register Here</a></p></div>
                     </form>
                 </div>
@@ -5003,7 +5004,18 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     </div>
 
     <!-- FORGOT PASSWORD -->
-    <div id="forgotPasswordSection" class="section-container">
+    
+<section id="emailConfirmationSection" class="section-container">
+ <div style="min-height:55vh;display:flex;align-items:center;justify-content:center;padding:36px 16px">
+  <div style="width:100%;max-width:560px;box-sizing:border-box;padding:32px 24px;background:white;border:1px solid #dce5ef;border-radius:22px;box-shadow:0 12px 40px #102b4614;text-align:center">
+   <div id="emailConfirmationIcon" aria-hidden="true" style="width:64px;height:64px;display:grid;place-items:center;border-radius:50%;background:#eef2ff;color:#163557;font-size:32px;margin:0 auto 18px">✉</div>
+   <h2 id="emailConfirmationTitle" style="font-size:26px;line-height:1.35;margin-bottom:16px">Email verification</h2>
+   <p id="emailConfirmationMessage" role="status" aria-live="polite" style="line-height:1.8;overflow-wrap:anywhere;margin-bottom:24px">Open the verification link sent to your registered email.</p>
+   <button type="button" class="form-btn" onclick="showSection('login')" style="width:100%;min-height:48px">Continue to Login</button>
+  </div>
+ </div>
+</section>
+<div id="forgotPasswordSection" class="section-container">
         <div class="auth-wrapper">
             <div class="auth-card-split">
                 <div class="auth-sidebar-panel" style="background: linear-gradient(135deg, #1e3a8a 0%, #111827 100%);">
@@ -5014,24 +5026,25 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
                 </div>
                 <div class="auth-form-panel">
                     <h2 data-i18n="resetTitle">Reset Password</h2>
-                    <form id="verifyUserForm" onsubmit="verifyForReset(event)">
+                    <p id="recoveryInstructions" style="margin-bottom:18px">Enter the email used to register your account. We will request a password reset link for that address. Open the link in your email to choose a new password.</p>
+                    <form id="verifyUserForm" onsubmit="verifyForReset(event)" novalidate>
                         <div class="form-group">
-                            <label data-i18n="lblRegId">Registered Mobile Number / Email / User ID</label>
-                            <div class="input-with-icon"><i class="fas fa-search field-icon"></i><input type="text" id="resetIdentifier" required></div>
+                            <label for="resetIdentifier">Registration Email Address</label>
+                            <div class="input-with-icon"><i class="fas fa-search field-icon"></i><input type="email" id="resetIdentifier"  placeholder="Enter your registered email" autocomplete="email" required></div>
                         </div>
-                        <button type="submit" class="form-btn" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;"><i class="fas fa-check-circle"></i> <span data-i18n="btnVerify">Verify Account</span></button>
+                        <button type="submit" class="form-btn" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;"><i class="fas fa-check-circle"></i> <span>Send Password Reset Link</span></button>
                     </form>
                     <form id="setNewPasswordForm" onsubmit="saveNewPassword(event)" style="display: none; margin-top: 30px; border-top: 2px dashed #E2E8F0; padding-top: 30px;">
                         <p style="color: var(--success); font-weight: 600; margin-bottom: 20px;"><i class="fas fa-user-check"></i> <span data-i18n="txtAccountFound">Set new password.</span></p>
                         <div class="form-group">
                             <label data-i18n="lblNewPass">New Password</label>
-                            <div class="input-with-icon has-toggle"><i class="fas fa-lock field-icon"></i><input type="password" id="resetNewPass" required><i class="fas fa-eye password-toggle" onclick="togglePassword('resetNewPass')"></i></div>
+                            <div class="input-with-icon has-toggle"><i class="fas fa-lock field-icon"></i><input type="password" id="resetNewPass" autocomplete="new-password" minlength="6" required><i class="fas fa-eye password-toggle" onclick="togglePassword('resetNewPass')"></i></div>
                         </div>
                         <div class="form-group">
                             <label data-i18n="lblConfirmNewPass">Confirm New Password</label>
-                            <div class="input-with-icon has-toggle"><i class="fas fa-check-double field-icon"></i><input type="password" id="resetConfirmPass" required><i class="fas fa-eye password-toggle" onclick="togglePassword('resetConfirmPass')"></i></div>
+                            <div class="input-with-icon has-toggle"><i class="fas fa-check-double field-icon"></i><input type="password" id="resetConfirmPass" autocomplete="new-password" minlength="6" required><i class="fas fa-eye password-toggle" onclick="togglePassword('resetConfirmPass')"></i></div>
                         </div>
-                        <button type="submit" class="form-btn"><i class="fas fa-save"></i> <span data-i18n="btnSavePass">Save & Login</span></button>
+                        <button type="submit" class="form-btn"><i class="fas fa-save"></i> <span>Save New Password</span></button>
                     </form>
                     <div class="auth-links"><p><i class="fas fa-arrow-left"></i> <a onclick="showSection('login')" data-i18n="backToLogin">Back to Login</a></p></div>
                 </div>
@@ -5118,7 +5131,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
         <span>Your account details are validated before registration is completed.</span>
     </div>
 
-    <button type="submit" class="form-btn"><i class="fas fa-user-check"></i> Complete Registration</button>
+    <button type="submit" class="form-btn"><i class="fas fa-user-check"></i> Register Now</button>
     <div class="auth-links"><p>Already registered? <a onclick="showSection('login')">Back to Login</a></p></div>
 </form>
                 </div>
@@ -7037,30 +7050,37 @@ const SOUMIK_SUPABASE_KEY = 'sb_publishable_FXnoeePC5eqjCROiz1lfBw_nTEf4eRu';
 // Login lasts only for this page instance; old saved sessions must not restore it.
 try { localStorage.removeItem('sb-aaqvkpmakmcehjbetggz-auth-token'); } catch (_) {}
 try { sessionStorage.removeItem('isLoggedIn'); } catch (_) {}
+// Bound network waits so an SMTP timeout cannot leave forms disabled forever.
+async function soumikTimedFetch(input,options={}) {
+  const controller=new AbortController();
+  const inherited=options.signal;
+  const cancel=()=>controller.abort();
+  if(inherited?.aborted)cancel();else inherited?.addEventListener('abort',cancel,{once:true});
+  const timer=setTimeout(cancel,35000);
+  try{return await fetch(input,{...options,signal:controller.signal});}
+  finally{clearTimeout(timer);inherited?.removeEventListener('abort',cancel);}
+}
+// Capture the email callback before the SDK can consume or clear its URL.
+const recoveryHash=new URLSearchParams(location.hash.slice(1));
+const recoveryQuery=new URLSearchParams(location.search);
+const confirmationLinkRequested=recoveryHash.get('type')==='signup'||recoveryQuery.get('type')==='signup'||recoveryQuery.get('confirm')==='email';
+const recoveryLinkRequested=recoveryHash.get('type')==='recovery'||recoveryQuery.get('type')==='recovery'||recoveryQuery.get('reset')==='password';
+const recoveryCallback={
+  access_token:recoveryHash.get('access_token'),refresh_token:recoveryHash.get('refresh_token'),
+  token_hash:recoveryQuery.get('token_hash'),code:recoveryQuery.get('code'),
+  error:recoveryHash.get('error_description')||recoveryQuery.get('error_description')||recoveryHash.get('error')||recoveryQuery.get('error')
+};
 const cloud = window.supabase?.createClient(SOUMIK_SUPABASE_URL, SOUMIK_SUPABASE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: true,
-    detectSessionInUrl: new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery' || new URLSearchParams(location.search).get('type') === 'recovery' }
+  global: { fetch: soumikTimedFetch },
+  auth: { persistSession: false, autoRefreshToken: true, flowType:'implicit', detectSessionInUrl:false }
 });
 // Back/forward cache can retain page memory. Reopen with a fresh login instead.
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 let cloudSession = null, cloudProfile = null, cloudContacts = [], cloudReviews = [];
 let cloudPublic = [], cloudMine = [], cloudBusy = false, cloudRecovery = false;
 let cloudRefreshSerial = 0, lastRegistrationEmail = '';
-// A login belongs only to this document. Closing, reloading or replacing it
-// requires a new password login. Product/account data stays in Supabase.
-const SOUMIK_DEPLOYMENT_REVISION = '20261007-final-password-login';
-const SOUMIK_SOURCE_FINGERPRINT = '443b2e07';
-let deploymentCheckBusy=false,deploymentCheckLast=0,cloudDocumentClosed=false;
-function storefrontFingerprint(source){
-  const normalized=source.replace(/\r\n?/g,'\n').replace(
-    /const SOUMIK_SOURCE_FINGERPRINT\s*=\s*['"][^'"]+['"]/,
-    "const SOUMIK_SOURCE_FINGERPRINT = '__FINGERPRINT__'");
-  let hash=2166136261;
-  for(let index=0;index<normalized.length;index++){
-    hash=Math.imul(hash^normalized.charCodeAt(index),16777619)>>>0;
-  }
-  return hash.toString(16).padStart(8,'0');
-}
+// Login ends when this document closes; normal browsing never forces logout.
+let cloudDocumentClosed=false;
 function clearPageLogin(){
   cloudDocumentClosed=true;
   cloudSession=null;cloudProfile=null;cloudMine=[];cloudRecovery=false;
@@ -7080,36 +7100,6 @@ window.addEventListener('pagehide',()=>{
   cloud?.auth.stopAutoRefresh();
   cloud?.auth.signOut({scope:'local'}).catch(()=>{});
 });
-async function checkPublishedReplacement(force=false){
-  if(!cloudSession?.user||deploymentCheckBusy||cloudDocumentClosed||document.hidden||!/^https?:$/.test(location.protocol))return;
-  if(!force&&Date.now()-deploymentCheckLast<30000)return;
-  deploymentCheckBusy=true;deploymentCheckLast=Date.now();
-  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
-  try{
-    const published=new URL(location.pathname,location.origin);
-    published.searchParams.set('_soumik_deploy_check',String(Date.now()));
-    const response=await fetch(published.href,{cache:'no-store',signal:controller.signal});
-    if(response.status===404||response.status===410){
-      clearPageLogin();
-      await cloud.auth.signOut({scope:'local'});
-      return;
-    }
-    if(!response.ok)return;
-    const html=await response.text();
-    if(!/<html[\s>]/i.test(html))return;
-    // Compare the whole HTML so future edits are detected even when the
-    // replacement retains the same revision string.
-    if(storefrontFingerprint(html)===SOUMIK_SOURCE_FINGERPRINT)return;
-    clearPageLogin();
-    try{await cloud.auth.signOut({scope:'local'});}catch(_){}
-    location.reload();
-  }catch(_){/* A temporary network failure is not a deployment change. */}
-  finally{clearTimeout(timeout);deploymentCheckBusy=false;}
-}
-setInterval(()=>checkPublishedReplacement(),30000);
-window.addEventListener('focus',()=>checkPublishedReplacement(true));
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkPublishedReplacement(true);});
-
 const el = id => document.getElementById(id);
 function cloudError(error) { console.error(error); alert(error?.message || 'Connection failed. Please try again.'); }
 function requireCloudUser() { if (cloudDocumentClosed || !cloud || !cloudSession?.user) throw new Error('Please log in with your registered email first.'); return cloudSession.user; }
@@ -7117,17 +7107,66 @@ function myProducts() { return cloudMine; }
 function withProducts(list, callback) { const saved=soumikProducts; soumikProducts=list; try{return callback();}finally{soumikProducts=saved;} }
 function sellerWhatsApp(product) { const contact=cloudContacts.find(x=>x.user_id===product.owner_id);return contact?.whatsapp_number || ''; }
 function cloudRedirect() { return location.origin + location.pathname; }
+function cloudEmailRedirectOptions(kind){
+  // Local previews use Supabase's configured Site URL; never send file:// or localhost email links.
+  const localHost=/^(localhost|.*\.localhost|127(?:\.\d+){3}|0\.0\.0\.0|\[::1\])$/i.test(location.hostname);
+  if(location.protocol!=='https:'||localHost)return {};
+  const target=new URL(location.origin+location.pathname);
+  target.searchParams.set(kind==='signup'?'confirm':'reset',kind==='signup'?'email':'password');
+  return kind==='signup'?{emailRedirectTo:target.href}:{redirectTo:target.href};
+}
+
 function cloudStatus(message,failed=false) {
   const status=el('cloudStatus');
   if(status){status.hidden=true;status.textContent='';status.style.setProperty('display','none','important');}
   if(failed)console.error('Online store:',message);
 }
+function authFormMessage(form,message,failed=false){
+  if(!form)return;
+  let box=form.querySelector('.auth-action-status');
+  if(!box){box=document.createElement('p');box.className='auth-action-status';box.setAttribute('role','status');box.setAttribute('aria-live','polite');box.style.cssText='margin:14px 0;padding:12px;border-radius:10px;white-space:pre-line';form.appendChild(box);}
+  box.textContent=message;box.style.background=failed?'#fff1f2':'#ecfdf5';box.style.color=failed?'#9f1239':'#065f46';
+}
+function authErrorMessage(error){
+  const message=error?.message||'Connection failed. Please try again.';
+  if(error?.status===429||/too many|rate.limit|over_email_send_rate_limit/i.test(message+' '+(error?.code||'')))return 'Too many email requests. Wait before trying again. Supabase and Brevo sending limits apply.';
+  if(error?.status===504||/504|timeout|timed out|abort|failed to fetch|fetch failed/i.test(message))return 'The server did not respond in time. Check Supabase Auth Logs and Brevo SMTP. Registration may have reached the server; try login or resend confirmation before registering again.';
+  return message;
+}
 async function cloudAction(event, action) {
-  event?.preventDefault(); if(cloudBusy)return; cloudBusy=true;
-  const buttons=[...(event?.target?.querySelectorAll('button[type="submit"]') || [])];
-  buttons.forEach(x=>x.disabled=true);
-  try { if(!cloud)throw new Error('Supabase could not load. Check your internet connection and reload.');await action(); }
-  catch(error){cloudError(error);} finally{cloudBusy=false;buttons.forEach(x=>x.disabled=false);}
+  event?.preventDefault();
+  const form=event?.currentTarget?.tagName==='FORM'?event.currentTarget:event?.target?.closest?.('form')||null;
+  if(cloudBusy)return;
+  cloudBusy=true;
+  const buttons=[...(form?.querySelectorAll('button')||[])],states=buttons.map(button=>({button,disabled:button.disabled,html:button.innerHTML}));
+  buttons.forEach(button=>button.disabled=true);
+  const submit=form?.querySelector('button[type="submit"]');if(submit)submit.textContent='Please wait…';
+  const oldStatus=form?.querySelector('.auth-action-status');if(oldStatus)oldStatus.remove();
+  try{if(!cloud)throw new Error('Supabase could not load. Check your internet connection and reload.');await action();}
+  catch(error){const message=authErrorMessage(error);authFormMessage(form,message,true);cloudError({message});}
+  finally{cloudBusy=false;states.forEach(({button,disabled,html})=>{button.disabled=disabled;button.innerHTML=html;});}
+}
+function openPasswordRecovery(){
+  showSection('forgotPasswordSection');
+  el('verifyUserForm').style.display=cloudRecovery?'none':'block';
+  el('setNewPasswordForm').style.display=cloudRecovery?'block':'none';
+  const identifier=el('loginIdentifier').value.trim();
+  if(identifier.includes('@'))el('resetIdentifier').value=identifier;
+  el(cloudRecovery?'resetNewPass':'resetIdentifier').focus();
+}
+function showRecoveryPasswordForm(){
+  cloudRecovery=true;showSection('forgotPasswordSection');
+  el('verifyUserForm').style.display='none';el('setNewPasswordForm').style.display='block';
+  el('recoveryInstructions').textContent='Your email link has verified your account. Enter your new password below.';
+  authFormMessage(el('setNewPasswordForm'),'Enter and confirm your new password.');
+  el('resetNewPass').focus();
+}
+let authEmailCooldowns=new Map();
+function checkEmailCooldown(kind,email){
+  const key=kind+':'+email.toLowerCase(),remaining=Math.ceil(((authEmailCooldowns.get(key)||0)-Date.now())/1000);
+  if(remaining>0)throw new Error('Wait '+remaining+' seconds before requesting another email.');
+  // Apply to attempts too, preventing repeated clicks during SMTP failure.
+  authEmailCooldowns.set(key,Date.now()+60000);
 }
 async function hydrateProducts(rows) {
   const paths=[...new Set(rows.flatMap(p=>p.images || []))]; const urls=new Map();
@@ -7158,7 +7197,7 @@ async function cloudRefresh() {
 async function loadCloudAccount() {
   if(!cloudSession?.user){cloudProfile=null;cloudMine=[];return;}
   const {data,error}=await cloud.from('profiles').select('*').eq('id',cloudSession.user.id).single();if(error)throw error;
-  cloudProfile={...data,fullName:data.full_name,mobile:data.mobile_number,email:cloudSession.user.email,userId:data.user_id||createSoumikUserId(data.full_name,data.mobile_number)};
+  cloudProfile={...data,fullName:data.full_name,mobile:data.mobile_number,email:cloudSession.user.email,userId:data.user_id||cloudSession.user.user_metadata?.login_id||cloudSession.user.user_metadata?.user_id||createSoumikUserId(data.full_name,data.mobile_number)};
   const {data:contact,error:contactError}=await cloud.from('seller_contacts').select('*').eq('user_id',data.id).single();if(contactError)throw contactError;
   if(!contact.whatsapp_number && /^\d{10}$/.test(data.mobile_number)){
     const host=['9593106177','9242088742'].includes(data.mobile_number);
@@ -7172,13 +7211,14 @@ window.registerOwner = event=>cloudAction(event,async()=>{
   if(officialOwnerId !== '865K246'){el('regOfficialOwnerId').focus();throw new Error('Invalid Owner ID. Enter the correct Owner Verification ID to register.');}
   if(fullName.length<2||!/^\d{10}$/.test(mobile)||!el('regEmail').checkValidity())throw new Error('Enter your name, 10-digit mobile and valid email.');
   if(password.length<6||password!==el('regConfirmPassword').value)throw new Error('Use matching passwords with at least 6 characters.');
-  const {data,error}=await cloud.auth.signUp({email,password,options:{emailRedirectTo:cloudRedirect(),data:{full_name:fullName,mobile_number:mobile,shop_name:fullName,official_owner_id:officialOwnerId}}});if(error)throw error;
+  const registrationUserId=createSoumikUserId(fullName,mobile);
+  const {data,error}=await cloud.auth.signUp({email,password,options:{...cloudEmailRedirectOptions('signup'),data:{full_name:fullName,mobile_number:mobile,mobile:mobile,login_id:registrationUserId,user_id:registrationUserId,shop_name:fullName,official_owner_id:officialOwnerId}}});if(error)throw error;
   if(data.user?.identities?.length===0)throw new Error('This email may already be registered. Please log in or reset your password.');
   if(!data.user?.id)throw new Error('Registration could not be confirmed. Please try again.');
   lastRegistrationEmail=email;el('registrationForm').reset();updateRegistrationFieldStates();
   if(data.session)cloudSession=data.session;
   showSection('login');el('loginIdentifier').value=email;
-  showSoumikRegistrationSuccess({fullName,mobile,email,userId:createSoumikUserId(fullName,mobile)});
+  showSoumikRegistrationSuccess({fullName,mobile,email,userId:registrationUserId});
   const note=el('soumikSuccessVerificationNote');
   note.textContent=data.session?'Your account is ready. Log in with your registered email and password.':'Check your email and confirm the registration link, then log in with your registered email and password.';
 
@@ -7201,23 +7241,24 @@ window.loginOwner=event=>cloudAction(event,async()=>{
   }
   const {data,error}=result;if(error)throw error;
   if(!data.session)throw new Error('Login could not be confirmed.');
-  cloudMine=[];cloudProfile=null;renderAdminInventory();cloudSession=data.session;await loadCloudAccount();await cloudRefresh();el('loginPassword').value='';showSection('admin');
+  cloudMine=[];cloudProfile=null;renderAdminInventory();cloudSession=data.session;await loadCloudAccount();el('loginPassword').value='';showSection('admin');cloudRefresh().catch(error=>cloudStatus(error.message,true));
 });
 window.verifyForReset=event=>cloudAction(event,async()=>{
   const email=el('resetIdentifier').value.trim();if(!email.includes('@'))throw new Error('Enter your registered email address.');
-  if(!/^https?:$/.test(location.protocol))throw new Error('Open the published website to receive a working password reset link.');
-  const {error}=await cloud.auth.resetPasswordForEmail(email,{redirectTo:cloudRedirect()});if(error)throw error;
-  alert('If this account exists, a reset link will arrive by email. Open that link to set your new password.');
+  checkEmailCooldown('reset',email);
+  const {error}=await cloud.auth.resetPasswordForEmail(email,cloudEmailRedirectOptions('reset'));if(error)throw error;
+  authFormMessage(el('verifyUserForm'),'Reset email requested. If this account exists, check your inbox and Spam folder. Open the email link to set your new password.');
 });
 window.saveNewPassword=event=>cloudAction(event,async()=>{
   if(!cloudRecovery||!cloudSession)throw new Error('Open the password recovery link sent to your email first.');
   const password=el('resetNewPass').value;if(password.length<6||password!==el('resetConfirmPass').value)throw new Error('Use matching passwords with at least 6 characters.');
-  const {error}=await cloud.auth.updateUser({password});if(error)throw error;cloudRecovery=false;await cloud.auth.signOut();cloudSession=null;await cloudRefresh();showSection('login');alert('Password updated. Log in with your new password.');
+  const {error}=await cloud.auth.updateUser({password});if(error)throw error;cloudRecovery=false;const {error:logoutError}=await cloud.auth.signOut({scope:'local'});if(logoutError)throw new Error('Password updated, but the reset session could not be closed. Please try logging out again.');cloudSession=null;cloudProfile=null;cloudMine=[];el('setNewPasswordForm').reset();showSection('login');authFormMessage(el('ownerLoginForm'),'Password updated. Log in with your new password.');alert('Password updated. Log in with your new password.');
 });
 window.showLogoutModal=()=>{el('logoutModalUserId').textContent=cloudSession?.user.email||'Account';el('logoutModalOverlay').classList.add('show-modal');};
 window.confirmLogout=()=>cloudAction(null,async()=>{const {error}=await cloud.auth.signOut();if(error)throw error;cloudSession=null;cloudProfile=null;cloudMine=[];tempUploadImages=[];editProductImages=[];el('productUploadForm').reset();renderUploadPreviews();cancelLogout();await cloudRefresh();showSection('home');});
 const originalCloudShowSection=showSection;
 window.showSection=function(section){
+  if(section==='admin'&&cloudRecovery) section='forgotPasswordSection';
   if(section==='admin'&&!cloudSession) section='login';
   // Legacy UI gate is cosmetic only. Database permissions use Supabase Auth.
   if(cloudSession)sessionStorage.setItem('isLoggedIn','true');else sessionStorage.removeItem('isLoggedIn');
@@ -7316,19 +7357,100 @@ const baseDetail=openProductDetail;
 window.openProductDetail=id=>{recordCloudProductView(id);baseDetail(id);const product=soumikProducts.find(p=>p.id===Number(id));const link=el('productDetailContent').querySelector('.btn-whatsapp');if(product&&link){const number=sellerWhatsApp(product);if(number)link.href=`https://wa.me/${number}?text=${encodeURIComponent(getWhatsAppOrderMessage(product,window.currentLanguage||'en'))}`;else link.removeAttribute('href');}};
 const baseOrderMessage=getWhatsAppOrderMessage;
 window.getWhatsAppOrderMessage=(product,lang)=>baseOrderMessage(product,lang)+'\n\nProduct: '+cloudRedirect()+'?product='+encodeURIComponent(product.id);
+function clearRecoveryUrl(){
+  const clean=new URL(location.href);
+  for(const key of ['reset','confirm','type','token_hash','code','error','error_code','error_description'])clean.searchParams.delete(key);
+  clean.hash='';
+  history.replaceState(null,'',clean.pathname+clean.search);
+}
+async function initializePasswordRecovery(){
+  if(confirmationLinkRequested||(!recoveryLinkRequested&&!recoveryCallback.error))return false;
+  showSection('forgotPasswordSection');
+  el('verifyUserForm').style.display='block';
+  el('setNewPasswordForm').style.display='none';
+  try{
+    if(recoveryCallback.error)throw new Error('This password reset link is invalid or has expired. Request a new link below.');
+    let result;
+    if(recoveryCallback.access_token&&recoveryCallback.refresh_token){
+      // Verify the refresh token with Supabase even when the access token is not expired.
+      result=await cloud.auth.refreshSession({refresh_token:recoveryCallback.refresh_token});
+    }else if(recoveryCallback.token_hash){
+      result=await cloud.auth.verifyOtp({token_hash:recoveryCallback.token_hash,type:'recovery'});
+    }else if(recoveryCallback.code){
+      result=await cloud.auth.exchangeCodeForSession(recoveryCallback.code);
+    }else{
+      throw new Error('The email link did not include a password reset token. Request a new link below. If this happens again, check the Supabase Reset Password email template uses {{ .ConfirmationURL }}.');
+    }
+    if(result.error)throw new Error('This password reset link has expired or has already been used. Request a new link below.');
+    if(!result.data?.session)throw new Error('This password reset link could not be verified. Request a new link below.');
+    cloudSession=result.data.session;
+    showRecoveryPasswordForm();
+  }catch(error){
+    cloudRecovery=false;cloudSession=null;
+    await cloud.auth.signOut({scope:'local'}).catch(()=>{});
+    el('verifyUserForm').style.display='block';el('setNewPasswordForm').style.display='none';
+    authFormMessage(el('verifyUserForm'),error.message||'Could not verify this reset link. Request a new link.',true);
+  }finally{
+    clearRecoveryUrl();
+    for(const key of Object.keys(recoveryCallback))recoveryCallback[key]=null;
+  }
+  return true;
+}
+let emailConfirmationResult=null;
+function showEmailConfirmationResult(success,message){
+  emailConfirmationResult={success,message};
+  showSection('emailConfirmationSection');
+  el('emailConfirmationTitle').textContent=success?'Email verified successfully':'Email verification unsuccessful';
+  el('emailConfirmationMessage').textContent=message;
+  el('emailConfirmationIcon').textContent=success?'✓':'!';
+  el('emailConfirmationIcon').style.background=success?'#dcfce7':'#fff1f2';
+  el('emailConfirmationIcon').style.color=success?'#166534':'#9f1239';
+}
+async function initializeEmailConfirmation(){
+  if(!confirmationLinkRequested)return false;
+  showSection('emailConfirmationSection');
+  el('emailConfirmationTitle').textContent='Verifying your email';
+  el('emailConfirmationMessage').textContent='Please wait while your email link is checked.';
+  try{
+    if(recoveryCallback.error)throw new Error('This verification link is invalid or has expired. If you have already verified your email, continue to login.');
+    let result;
+    if(recoveryCallback.refresh_token){
+      result=await cloud.auth.refreshSession({refresh_token:recoveryCallback.refresh_token});
+    }else if(recoveryCallback.token_hash){
+      result=await cloud.auth.verifyOtp({token_hash:recoveryCallback.token_hash,type:'signup'});
+    }else if(recoveryCallback.code){
+      result=await cloud.auth.exchangeCodeForSession(recoveryCallback.code);
+    }else throw new Error('The link did not include verification information. Check that the Supabase Confirm Signup email template links to {{ .ConfirmationURL }}.');
+    if(result.error)throw new Error('This verification link is invalid, expired or already used. If your email is verified, continue to login.');
+    const {data,error}=await cloud.auth.getUser();
+    if(error||!data?.user?.email_confirmed_at)throw new Error('Your email verification could not be confirmed. Please try again with a valid verification email.');
+    const {error:signoutError}=await cloud.auth.signOut({scope:'local'});
+    if(signoutError)throw signoutError;
+    cloudSession=null;cloudProfile=null;cloudMine=[];
+    showEmailConfirmationResult(true,'Your email has been verified and your registration is complete. Log in with your mobile number, email or user ID and password.');
+  }catch(error){
+    await cloud.auth.signOut({scope:'local'}).catch(()=>{});
+    cloudSession=null;cloudProfile=null;cloudMine=[];
+    showEmailConfirmationResult(false,error.message||'Could not verify this email link.');
+  }finally{
+    clearRecoveryUrl();for(const key of Object.keys(recoveryCallback))recoveryCallback[key]=null;
+  }
+  return true;
+}
 async function startCloud(){
   if(!cloud){cloudStatus('Could not load Supabase. Check your internet and reload.',true);return;}
   cloud.auth.onAuthStateChange((event,session)=>{
     if(cloudDocumentClosed)return;
     if(cloudSession?.user.id !== session?.user.id){cloudProfile=null;cloudMine=[];soumikProducts=[...cloudPublic];renderAdminInventory();}
     cloudSession=session;
-    if(event==='PASSWORD_RECOVERY'){cloudRecovery=true;setTimeout(()=>{showSection('reset');el('verifyUserForm').style.display='none';el('setNewPasswordForm').style.display='block';},0);}
+    if(event==='PASSWORD_RECOVERY')setTimeout(showRecoveryPasswordForm,0);
     if(event==='SIGNED_OUT'){cloudProfile=null;cloudMine=[];sessionStorage.removeItem('isLoggedIn');if(el('admin').classList.contains('active-section'))showSection('login');}
     if(['SIGNED_IN','SIGNED_OUT','USER_UPDATED'].includes(event))setTimeout(async()=>{try{await loadCloudAccount();await cloudRefresh();}catch(e){cloudStatus(e.message,true);}},0);
   });
-  try{const {data,error}=await cloud.auth.getSession();if(error)throw error;cloudSession=data.session;await loadCloudAccount();await cloudRefresh();}catch(e){cloudStatus(e.message,true);}
+  try{const confirmed=await initializeEmailConfirmation();const recovered=confirmed||await initializePasswordRecovery();if(!recovered){const {data,error}=await cloud.auth.getSession();if(error)throw error;cloudSession=data.session;}await loadCloudAccount();await cloudRefresh();}catch(e){cloudStatus(e.message,true);}
 }
-window.addEventListener('load',startCloud);
+startCloud();
+window.addEventListener('load',()=>{if(cloudRecovery&&cloudSession)showRecoveryPasswordForm();else if(emailConfirmationResult)showEmailConfirmationResult(emailConfirmationResult.success,emailConfirmationResult.message);});
 window.addEventListener('focus',()=>{if(cloud&&!cloudBusy)cloudRefresh().catch(e=>cloudStatus(e.message,true));});
 setInterval(()=>{if(cloud&&!cloudBusy&&!document.hidden)cloudRefresh().catch(e=>cloudStatus(e.message,true));},300000);
 
@@ -7385,5 +7507,29 @@ window.openImageZoom=function(id,index=0){recordCloudProductView(id);return shar
 #admin .product-id-search input{font-size:16px;font-variant-numeric:tabular-nums;letter-spacing:.6px}
 </style>
 <style>.admin-shared-views{font-size:13px;font-weight:600;color:#475467;margin:10px 0}</style>
+
+<style id="soumik-recovery-devices">
+/* One recovery form for phones, tablets and computers. */
+#forgotPasswordSection .auth-wrapper{padding:40px 16px!important;min-height:0!important}
+#forgotPasswordSection .auth-card-split{width:100%;max-width:1000px;box-sizing:border-box}
+#forgotPasswordSection .auth-sidebar-panel{box-sizing:border-box;min-width:0;padding:40px 28px!important}
+#forgotPasswordSection .auth-form-panel{box-sizing:border-box;min-width:0;padding:40px 28px!important}
+#forgotPasswordSection form,#forgotPasswordSection .input-with-icon{min-width:0;width:100%;box-sizing:border-box}
+#forgotPasswordSection input{width:100%;min-width:0;font-size:16px!important;box-sizing:border-box;min-height:48px}
+#forgotPasswordSection .form-btn{width:100%;min-height:48px;white-space:normal}
+#forgotPasswordSection p,#forgotPasswordSection .auth-action-status{overflow-wrap:anywhere}
+@media(max-width:900px){
+ #forgotPasswordSection .auth-card-split{flex-direction:column!important}
+ #forgotPasswordSection .auth-sidebar-panel,#forgotPasswordSection .auth-form-panel{width:100%!important}
+ #forgotPasswordSection .auth-sidebar-panel{padding:24px!important}
+ #forgotPasswordSection .auth-sidebar-content .big-icon{font-size:32px!important;margin-bottom:10px!important}
+}
+@media(max-width:480px){
+ #forgotPasswordSection .auth-wrapper{padding:16px 10px!important}
+ #forgotPasswordSection .auth-form-panel{padding:24px 16px!important}
+ #forgotPasswordSection .auth-form-panel h2{font-size:26px!important}
+ #forgotPasswordSection .auth-card-split{border-radius:18px!important}
+}
+</style>
 </body>
 </html>
