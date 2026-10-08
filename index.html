@@ -7019,7 +7019,11 @@ new MutationObserver(translateProfileControls).observe(document.documentElement,
 </script>
 <style>.password-match{border:2px solid #16a34a!important;background:#f0fdf4!important}.password-mismatch{border:2px solid #dc2626!important}#passwordMatchStatus{font-size:13px;color:#15803d;font-weight:700}.product-order-id{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;margin:10px 0;color:#475467}.product-order-id strong{color:#163557;overflow-wrap:anywhere;user-select:all}.product-order-id button{border:1px solid #d4deea;border-radius:7px;background:#f5f8fc;padding:6px 9px;color:#163557;cursor:pointer}.product-id-search{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}.product-id-search input{flex:1 1 220px;padding:13px;border:1px solid #ccd6e3;border-radius:11px;min-width:0}.product-id-search button{padding:12px 16px;border:0;border-radius:11px;background:#163557;color:white;cursor:pointer}#passwordChangeSubmit:disabled{opacity:.5;cursor:default}</style><script>
 function productIdText(key,lang=window.currentLanguage||'en'){const dict={en:{id:'Product ID',search:'Search by ID',clear:'Show all',noMatch:'No product matches this ID.',empty:'No products uploaded yet.',copied:'Product ID copied.',match:'✓ Passwords match. Submit to change your password.',mismatch:'Passwords do not match.'},bn:{id:'প্রোডাক্ট আইডি',search:'আইডি দিয়ে খুঁজুন',clear:'সব দেখুন',noMatch:'এই আইডির কোনো প্রোডাক্ট পাওয়া যায়নি।',empty:'এখনও প্রোডাক্ট আপলোড হয়নি।',copied:'প্রোডাক্ট আইডি কপি হয়েছে।',match:'✓ পাসওয়ার্ড মিলেছে। সাবমিট করলে পরিবর্তন হবে।',mismatch:'পাসওয়ার্ড দুটি মেলেনি।'},hi:{id:'प्रोडक्ट आईडी',search:'आईडी से खोजें',clear:'सभी दिखाएँ',noMatch:'इस आईडी का प्रोडक्ट नहीं मिला।',empty:'अभी प्रोडक्ट अपलोड नहीं हुए।',copied:'प्रोडक्ट आईडी कॉपी हो गई।',match:'✓ पासवर्ड मेल खाते हैं। बदलने के लिए सबमिट करें।',mismatch:'पासवर्ड मेल नहीं खाते।'}};return (dict[lang]||dict.en)[key]}
-function generateProductOrderId(){const used=new Set(soumikProducts.map(p=>String(p.orderId||'')));let id;do{const random=new Uint32Array(1);crypto.getRandomValues(random);id=String(Date.now())+String(random[0]%10000).padStart(4,'0')}while(used.has(id));return id}
+function generateProductOrderId(){
+  const used=new Set([...soumikProducts,...cloudMine].map(p=>String(p.orderId||'')));
+  let id;do{const random=new Uint32Array(1);crypto.getRandomValues(random);id=String(Date.now())+String(random[0]%100000).padStart(5,'0');}while(used.has(id));
+  return id; // Keep the 18-digit reference as text; Number would lose precision.
+}
 function ensureProductOrderIds() {}
 async function copyProductOrderId(id){try{await navigator.clipboard.writeText(String(id));alert(productIdText('copied'))}catch(e){window.prompt(productIdText('id'),String(id))}}
 function updatePasswordMatchState(){const a=document.getElementById('editProfileNewPass'),b=document.getElementById('profileConfirmNewPassword'),submit=document.getElementById('passwordChangeSubmit'),status=document.getElementById('passwordMatchStatus');if(!a||!b||!submit)return;const match=a.value.length>=6&&a.value===b.value;[a,b].forEach(el=>{el.classList.toggle('password-match',match);el.classList.toggle('password-mismatch',b.value.length>0&&a.value!==b.value)});submit.disabled=!profilePasswordVerified||!match;if(status){status.textContent=match?productIdText('match'):b.value&&a.value!==b.value?productIdText('mismatch'):'';status.style.color=match?'#15803d':'#dc2626'}}
@@ -7307,7 +7311,20 @@ window.publishProduct=event=>cloudAction(event,async()=>{
   const user=requireCloudUser();const name=el('uploadName').value.trim(),category=el('uploadCategory').value,price=el('uploadPrice').value,size=getFinalSizeValue('uploadSize','uploadCustomSize'),description=el('uploadDesc').value.trim();
   if(!name||!category||price===''||!Number.isFinite(Number(price))||Number(price)<0||!size||!description||!tempUploadImages.length)throw new Error('Complete all product fields and add at least one photo.');
   const contact=cloudContacts.find(x=>x.user_id===user.id);if(!contact?.whatsapp_number)throw new Error('Save your WhatsApp number in Profile before publishing.');
-  const {data,error}=await cloud.from('products').insert({owner_id:user.id,name,category,price:Number(price),size,description,status:'draft'}).select().single();if(error)throw error;
+  let data=null;
+  for(let attempt=0;attempt<5;attempt++){
+    const orderId=generateProductOrderId();
+    const result=await cloud.from('products').insert({owner_id:user.id,order_id:orderId,name,category,price:Number(price),size,description,status:'draft'}).select().single();
+    if(result.error){if(result.error.code==='23505'&&/order_id/i.test(result.error.message||'')&&attempt<4)continue;throw result.error;}
+    data=result.data;
+    if(String(data.order_id)!==orderId){
+      const {error}=await cloud.from('products').update({order_id:orderId}).eq('id',data.id).eq('owner_id',user.id);
+      if(error){await cloud.from('products').delete().eq('id',data.id).eq('owner_id',user.id);throw error;}
+      data.order_id=orderId;
+    }
+    break;
+  }
+  if(!data)throw new Error('Could not allocate a unique product ID. Please try again.');
   const uploaded=[];try{
     const paths=await uploadCloudImages(data.id,[...tempUploadImages],null,uploaded);
     const {error:saveError}=await cloud.from('products').update({images:paths,status:'published'}).eq('id',data.id).eq('owner_id',user.id);if(saveError)throw saveError;
